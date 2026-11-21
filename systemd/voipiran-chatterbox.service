@@ -1,0 +1,22 @@
+[Unit]
+Description=VOIPIRAN Persian Chatterbox TTS API
+After=network.target
+
+[Service]
+Type=simple
+User=chatterbox
+Group=chatterbox
+WorkingDirectory=/opt/voipiran-chatterbox
+EnvironmentFile=/etc/voipiran-chatterbox.env
+Environment=HF_HUB_OFFLINE=1
+ExecStart=/opt/voipiran-chatterbox/venv/bin/python -m voipiran_chatterbox.api
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/voipiran-chatterbox
+
+[Install]
+WantedBy=multi-user.target
