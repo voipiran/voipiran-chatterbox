@@ -16,6 +16,14 @@ install -d -m 0755 "$APP_DIR" "$DATA_DIR/model"
 id chatterbox >/dev/null 2>&1 || useradd --system --home-dir "$DATA_DIR" --shell /sbin/nologin chatterbox
 chown -R chatterbox:chatterbox "$DATA_DIR"
 
+model_is_ready() {
+  local name
+  for name in ve.safetensors t3_cfg.safetensors s3gen.safetensors tokenizer.json; do
+    [[ -s "$DATA_DIR/model/$name" ]] || return 1
+  done
+  return 0
+}
+
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 cp -a "$SCRIPT_DIR/src" "$SCRIPT_DIR/pyproject.toml" "$APP_DIR/"
 "$PYTHON" -m venv "$APP_DIR/venv"
@@ -27,13 +35,17 @@ cp -a "$SCRIPT_DIR/src" "$SCRIPT_DIR/pyproject.toml" "$APP_DIR/"
 "$APP_DIR/venv/bin/pip" install chatterbox-tts
 "$APP_DIR/venv/bin/pip" install --force-reinstall --no-deps torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
 
-read -r -s -p "Hugging Face token (gated Persian model; not saved): " HF_TOKEN
-echo
-[[ -n "$HF_TOKEN" ]] || { echo "A Hugging Face token is required for initial download." >&2; exit 1; }
-export HF_TOKEN CHATTERBOX_MODEL_DIR="$DATA_DIR/model"
-chown chatterbox:chatterbox "$DATA_DIR/model"
-runuser -u chatterbox -- env CHATTERBOX_MODEL_DIR="$DATA_DIR/model" "$APP_DIR/venv/bin/python" -m voipiran_chatterbox.download_model <<< "$HF_TOKEN"
-unset HF_TOKEN
+if model_is_ready; then
+  echo "Found local model files; skipping Hugging Face login and download."
+else
+  read -r -s -p "Hugging Face token (gated Persian model; not saved): " HF_TOKEN
+  echo
+  [[ -n "$HF_TOKEN" ]] || { echo "A Hugging Face token is required for the initial download." >&2; exit 1; }
+  export CHATTERBOX_MODEL_DIR="$DATA_DIR/model"
+  chown chatterbox:chatterbox "$DATA_DIR/model"
+  runuser -u chatterbox -- env CHATTERBOX_MODEL_DIR="$DATA_DIR/model" "$APP_DIR/venv/bin/python" -m voipiran_chatterbox.download_model <<< "$HF_TOKEN"
+  unset HF_TOKEN
+fi
 
 cat >/etc/voipiran-chatterbox.env <<EOF
 CHATTERBOX_MODEL_DIR=$DATA_DIR/model
